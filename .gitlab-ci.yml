@@ -23,16 +23,26 @@ release:
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
         --upload-file "dist/ddns_admin_whitelist-${CI_COMMIT_TAG}.zip" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ddns_admin_whitelist/${CI_COMMIT_TAG}/ddns_admin_whitelist-${CI_COMMIT_TAG}.zip"
+    - |
+      cat > /tmp/release.json <<EOF
+      {
+        "name": "DDNS Admin Whitelist ${CI_COMMIT_TAG}",
+        "tag_name": "${CI_COMMIT_TAG}",
+        "description": "Phát hành ${CI_COMMIT_TAG} bởi CI/CD của tổ chức hitechcloudvn.\n\nCo-authored-by: pgt-vn <nguyenthanhan92f1@gmail.com>\nCo-authored-by: agent-hitechcloud <agent@hitechcloud.vn>",
+        "assets": {
+          "links": [
+            {
+              "name": "ddns_admin_whitelist-${CI_COMMIT_TAG}.zip",
+              "url": "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ddns_admin_whitelist/${CI_COMMIT_TAG}/ddns_admin_whitelist-${CI_COMMIT_TAG}.zip"
+            }
+          ]
+        }
+      }
+      EOF
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --request POST "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases" \
+        --data @/tmp/release.json
   artifacts:
     paths:
       - dist/
-  release:
-    tag_name: $CI_COMMIT_TAG
-    description: "Phát hành $CI_COMMIT_TAG bởi CI/CD của tổ chức hitechcloudvn.
-
-    Co-authored-by: pgt-vn <nguyenthanhan92f1@gmail.com>
-    Co-authored-by: agent-hitechcloud <agent@hitechcloud.vn>"
-    assets:
-      links:
-        - name: ddns_admin_whitelist-$CI_COMMIT_TAG.zip
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ddns_admin_whitelist/${CI_COMMIT_TAG}/ddns_admin_whitelist-${CI_COMMIT_TAG}.zip"

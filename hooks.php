@@ -1,6 +1,12 @@
 <?php
 /**
  * DDNS Admin Whitelist hooks.
+ *
+ * WHMCS hooks for the DDNS Admin Whitelist addon module of HiTechCloud
+ * (org: hitechcloudvn).
+ *
+ * Các hook WHMCS cho module addon DDNS Admin Whitelist của HiTechCloud
+ * (org: hitechcloudvn).
  */
 
 if (!defined("WHMCS")) {

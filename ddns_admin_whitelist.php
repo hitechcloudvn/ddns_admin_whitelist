@@ -2,8 +2,13 @@
 /**
  * DDNS Admin Whitelist
  *
- * WHMCS addon module that resolves one or more DDNS hostnames and safely keeps
- * WHMCS admin login whitelist entries updated with the latest public IPv4.
+ * WHMCS addon module of HiTechCloud (org: hitechcloudvn) that resolves DDNS
+ * hostnames and safely keeps the WHMCS admin login IP whitelist
+ * (WhitelistedIPs) updated with the latest public IPv4.
+ *
+ * Module addon WHMCS của HiTechCloud (org: hitechcloudvn), phân giải hostname
+ * DDNS và cập nhật an toàn whitelist IP đăng nhập admin WHMCS (WhitelistedIPs)
+ * bằng địa chỉ IPv4 công khai mới nhất.
  */
 
 use WHMCS\Database\Capsule;
@@ -23,6 +28,7 @@ if (!function_exists('ddns_admin_whitelist_config')) {
 
 /**
  * Addon module metadata and configurable defaults.
+ * Thông tin metadata và các giá trị cấu hình mặc định của module addon.
  *
  * @return array
  */
@@ -30,30 +36,118 @@ function ddns_admin_whitelist_config()
 {
     return array(
         'name' => 'DDNS Admin Whitelist',
-        'description' => 'Resolve DDNS hostnames every 15-30 minutes and safely update the WHMCS admin login IP whitelist.',
-        'author' => 'HitechCloud AI Factory',
+        'description' => 'Resolve DDNS hostnames and safely update the WHMCS admin login IP whitelist. / Tự động phân giải hostname DDNS và cập nhật an toàn whitelist IP đăng nhập admin WHMCS.',
+        'author' => 'HiTechCloud (hitechcloudvn)',
         'language' => 'english',
         'version' => '1.0.0',
         'fields' => array(
             'default_interval' => array(
-                'FriendlyName' => 'Default Check Interval',
+                'FriendlyName' => ddns_admin_whitelist_lang('cfg_default_interval_name'),
                 'Type' => 'text',
                 'Size' => '5',
                 'Default' => '15',
-                'Description' => 'Minutes between checks for newly added hostnames. Values are clamped to 15-30 minutes.',
+                'Description' => ddns_admin_whitelist_lang('cfg_default_interval_desc'),
             ),
             'cron_enabled' => array(
-                'FriendlyName' => 'Enable Cron Checks',
+                'FriendlyName' => ddns_admin_whitelist_lang('cfg_cron_enabled_name'),
                 'Type' => 'yesno',
                 'Default' => 'on',
-                'Description' => 'Run hostname checks from the WHMCS AfterCronJob hook.',
+                'Description' => ddns_admin_whitelist_lang('cfg_cron_enabled_desc'),
+            ),
+            'ui_language' => array(
+                'FriendlyName' => ddns_admin_whitelist_lang('cfg_ui_language_name'),
+                'Type' => 'dropdown',
+                'Options' => 'english,vietnamese',
+                'Default' => 'english',
+                'Size' => '15',
+                'Description' => ddns_admin_whitelist_lang('cfg_ui_language_desc'),
             ),
         ),
     );
 }
 
 /**
+ * Resolve the configured admin UI language for this module.
+ *
+ * Xác định ngôn ngữ giao diện admin được cấu hình cho module.
+ *
+ * @return string
+ */
+function ddns_admin_whitelist_ui_language()
+{
+    try {
+        $row = Capsule::table('tbladdonmodules')
+            ->where('module', DDNS_ADMIN_WHITELIST_MODULE)
+            ->where('setting', 'ui_language')
+            ->first();
+
+        if ($row && (string) $row->value === 'vietnamese') {
+            return 'vietnamese';
+        }
+
+        return 'english';
+    } catch (\Exception $e) {
+        return 'english';
+    }
+}
+
+/**
+ * Load a module language string by key.
+ *
+ * Tải một chuỗi ngôn ngữ của module theo khóa.
+ *
+ * @param string $key
+ *
+ * @return string
+ */
+function ddns_admin_whitelist_lang($key)
+{
+    static $langCache = array();
+
+    $language = ddns_admin_whitelist_ui_language();
+
+    if (!isset($langCache[$language])) {
+        $strings = array();
+        $file = __DIR__ . '/lang/' . $language . '.php';
+
+        if (is_file($file)) {
+            $loaded = include $file;
+            if (is_array($loaded)) {
+                $strings = $loaded;
+            }
+        }
+
+        $langCache[$language] = $strings;
+    }
+
+    if (isset($langCache[$language][$key])) {
+        return (string) $langCache[$language][$key];
+    }
+
+    if (!isset($langCache['english'])) {
+        $strings = array();
+        $file = __DIR__ . '/lang/english.php';
+
+        if (is_file($file)) {
+            $loaded = include $file;
+            if (is_array($loaded)) {
+                $strings = $loaded;
+            }
+        }
+
+        $langCache['english'] = $strings;
+    }
+
+    if (isset($langCache['english'][$key])) {
+        return (string) $langCache['english'][$key];
+    }
+
+    return (string) $key;
+}
+
+/**
  * Create module database tables.
+ * Tạo các bảng cơ sở dữ liệu của module.
  *
  * @return array
  */
@@ -76,6 +170,7 @@ function ddns_admin_whitelist_activate()
 
 /**
  * Deactivation intentionally preserves data and whitelist entries.
+ * Vô hiệu hoá module nhưng vẫn giữ nguyên dữ liệu và các mục whitelist.
  *
  * @return array
  */
@@ -89,6 +184,7 @@ function ddns_admin_whitelist_deactivate()
 
 /**
  * Ensure required schema exists after upgrades.
+ * Đảm bảo cấu trúc bảng cần thiết tồn tại sau khi nâng cấp.
  *
  * @param array $vars
  *
@@ -101,6 +197,7 @@ function ddns_admin_whitelist_upgrade($vars)
 
 /**
  * Render and process the admin UI.
+ * Hiển thị và xử lý giao diện admin.
  *
  * @param array $vars
  *
@@ -134,6 +231,7 @@ function ddns_admin_whitelist_output($vars)
 
 /**
  * Create the module tables if missing.
+ * Tạo các bảng của module nếu chưa tồn tại.
  *
  * @return void
  */
@@ -183,6 +281,7 @@ function ddns_admin_whitelist_ensure_schema()
 
 /**
  * Process an admin POST action.
+ * Xử lý một hành động POST từ admin.
  *
  * @param array $vars
  *
@@ -221,6 +320,7 @@ function ddns_admin_whitelist_handle_admin_post($vars)
 
 /**
  * Add a hostname and run an immediate check.
+ * Thêm một hostname và chạy kiểm tra ngay lập tức.
  *
  * @param array $vars
  *
@@ -281,6 +381,7 @@ function ddns_admin_whitelist_admin_add_host($vars)
 
 /**
  * Update hostname settings and run an immediate check if enabled.
+ * Cập nhật thiết lập hostname và chạy kiểm tra ngay nếu đang bật.
  *
  * @return array
  */
@@ -334,6 +435,7 @@ function ddns_admin_whitelist_admin_update_host()
 
 /**
  * Run a forced check for one host.
+ * Chạy kiểm tra bắt buộc cho một hostname.
  *
  * @return array
  */
@@ -350,6 +452,7 @@ function ddns_admin_whitelist_admin_check_host()
 
 /**
  * Run forced checks for all enabled hosts.
+ * Chạy kiểm tra bắt buộc cho tất cả hostname đang bật.
  *
  * @return array
  */
@@ -388,6 +491,7 @@ function ddns_admin_whitelist_admin_check_all()
 
 /**
  * Toggle a host and run an immediate check when enabling.
+ * Bật/tắt một hostname và chạy kiểm tra ngay khi bật.
  *
  * @return array
  */
@@ -423,6 +527,7 @@ function ddns_admin_whitelist_admin_toggle_host()
 
 /**
  * Delete module host record only. WHMCS whitelist is intentionally preserved.
+ * Chỉ xoá bản ghi hostname của module. Whitelist WHMCS được giữ nguyên một cách chủ đích.
  *
  * @return array
  */
@@ -444,6 +549,7 @@ function ddns_admin_whitelist_admin_delete_host()
 
 /**
  * Delete old logs.
+ * Xoá các bản ghi log cũ.
  *
  * @return array
  */
@@ -477,6 +583,7 @@ function ddns_admin_whitelist_admin_prune_logs()
 
 /**
  * Run due checks for cron or forced checks for admin.
+ * Chạy các lượt kiểm tra đến hạn cho cron hoặc kiểm tra bắt buộc cho admin.
  *
  * @param bool $force
  *
@@ -506,6 +613,7 @@ function ddns_admin_whitelist_run_due_checks($force = false)
 
 /**
  * Check whether cron is enabled for this addon.
+ * Kiểm tra cron có được bật cho addon này hay không.
  *
  * @return bool
  */
@@ -529,6 +637,7 @@ function ddns_admin_whitelist_cron_enabled()
 
 /**
  * Run one hostname check by id.
+ * Chạy kiểm tra cho một hostname theo id.
  *
  * @param int  $hostId
  * @param bool $force
@@ -550,6 +659,7 @@ function ddns_admin_whitelist_check_host_by_id($hostId, $force = false)
 
 /**
  * Resolve and sync one host.
+ * Phân giải và đồng bộ một hostname.
  *
  * @param object $host
  * @param bool   $force
@@ -700,6 +810,7 @@ function ddns_admin_whitelist_check_host($host, $force = false)
 
 /**
  * Determine if a host is due for a scheduled check.
+ * Xác định một hostname đã đến lượt kiểm tra theo lịch hay chưa.
  *
  * @param object $host
  *
@@ -725,6 +836,7 @@ function ddns_admin_whitelist_host_is_due($host)
 
 /**
  * Safely update only this module's managed whitelist entry for one host.
+ * Chỉ cập nhật an toàn mục whitelist do module quản lý cho một hostname.
  *
  * @param object $host
  * @param string $ip
@@ -808,6 +920,7 @@ function ddns_admin_whitelist_sync_whitelist_entry($host, $ip)
 
 /**
  * Read WHMCS WhitelistedIPs config without clearing invalid data.
+ * Đọc cấu hình WhitelistedIPs của WHMCS mà không xoá dữ liệu không hợp lệ.
  *
  * @param string $error
  *
@@ -839,6 +952,7 @@ function ddns_admin_whitelist_read_whitelisted_ips(&$error)
 
 /**
  * Save WHMCS WhitelistedIPs config.
+ * Lưu cấu hình WhitelistedIPs của WHMCS.
  *
  * @param array $entries
  *
@@ -872,6 +986,7 @@ function ddns_admin_whitelist_save_whitelisted_ips(array $entries)
 
 /**
  * Remove a matching ban row after an IP is successfully whitelisted.
+ * Xoá bản ghi chặn IP tương ứng sau khi IP được thêm vào whitelist thành công.
  *
  * @param string $ip
  *
@@ -894,6 +1009,7 @@ function ddns_admin_whitelist_unban_ip($ip)
 
 /**
  * Resolve one public IPv4 address for a hostname.
+ * Phân giải một địa chỉ IPv4 công khai cho hostname.
  *
  * @param string $hostname
  *
@@ -965,6 +1081,7 @@ function ddns_admin_whitelist_resolve_public_ipv4($hostname)
 
 /**
  * Validate a public IPv4 address.
+ * Kiểm tra tính hợp lệ của một địa chỉ IPv4 công khai.
  *
  * @param string $ip
  *
@@ -979,6 +1096,7 @@ function ddns_admin_whitelist_is_public_ipv4($ip)
 
 /**
  * Normalize hostname input.
+ * Chuẩn hoá dữ liệu hostname đầu vào.
  *
  * @param string $hostname
  *
@@ -994,6 +1112,7 @@ function ddns_admin_whitelist_normalize_hostname($hostname)
 
 /**
  * Validate hostname syntax.
+ * Kiểm tra cú pháp của hostname.
  *
  * @param string $hostname
  * @param string $error
@@ -1041,6 +1160,7 @@ function ddns_admin_whitelist_validate_hostname($hostname, &$error)
 
 /**
  * Clamp interval to the required 15-30 minute range.
+ * Giới hạn khoảng kiểm tra trong phạm vi bắt buộc 15-30 phút.
  *
  * @param mixed $minutes
  *
@@ -1063,6 +1183,7 @@ function ddns_admin_whitelist_normalize_interval($minutes)
 
 /**
  * Default interval from module config.
+ * Khoảng kiểm tra mặc định lấy từ cấu hình module.
  *
  * @param array $vars
  *
@@ -1075,6 +1196,7 @@ function ddns_admin_whitelist_default_interval($vars)
 
 /**
  * Get host row using posted host_id.
+ * Lấy bản ghi hostname dựa trên host_id được gửi lên.
  *
  * @return object
  */
@@ -1099,6 +1221,7 @@ function ddns_admin_whitelist_get_host_from_post()
 
 /**
  * Write module log row.
+ * Ghi một bản ghi log của module.
  *
  * @param int|null    $hostId
  * @param string      $hostname
@@ -1128,6 +1251,7 @@ function ddns_admin_whitelist_log($hostId, $hostname, $oldIp, $newIp, $success, 
 
 /**
  * Render admin page.
+ * Hiển thị trang admin.
  *
  * @param array $vars
  * @param array $messages
@@ -1159,50 +1283,50 @@ function ddns_admin_whitelist_render_admin($vars, array $messages)
     }
 
     $html .= '<div class="alert alert-info">';
-    $html .= '<strong>Safety rules:</strong> this addon updates only entries tagged with <code>ddns_admin_whitelist</code>, preserves manual WHMCS whitelist entries, never clears all <code>WhitelistedIPs</code>, and keeps the latest stored IP when DNS resolution fails.';
+    $html .= ddns_admin_whitelist_lang('msg_safety_rules');
     $html .= '</div>';
 
     $html .= '<div class="panel panel-default">';
-    $html .= '<div class="panel-heading"><strong>Add DDNS Hostname</strong></div>';
+    $html .= '<div class="panel-heading"><strong>' . ddns_admin_whitelist_lang('panel_add_hostname') . '</strong></div>';
     $html .= '<div class="panel-body">';
     $html .= '<form method="post" action="' . ddns_admin_whitelist_e($modulelink) . '" class="form-inline">';
     $html .= ddns_admin_whitelist_token_input($csrfToken);
     $html .= '<input type="hidden" name="ddns_action" value="add_host">';
     $html .= '<div class="form-group" style="margin-right:10px">';
-    $html .= '<label>Hostname&nbsp;</label><input type="text" name="hostname" class="form-control" style="min-width:280px" placeholder="admin-ddns.example.com" required>';
+    $html .= '<label>' . ddns_admin_whitelist_lang('lbl_hostname') . '&nbsp;</label><input type="text" name="hostname" class="form-control" style="min-width:280px" placeholder="admin-ddns.example.com" required>';
     $html .= '</div>';
     $html .= '<div class="form-group" style="margin-right:10px">';
-    $html .= '<label>Interval&nbsp;</label><input type="number" min="15" max="30" name="interval_minutes" class="form-control" style="width:90px" value="' . (int) $defaultInterval . '"> <span class="muted">minutes</span>';
+    $html .= '<label>' . ddns_admin_whitelist_lang('lbl_interval') . '&nbsp;</label><input type="number" min="15" max="30" name="interval_minutes" class="form-control" style="width:90px" value="' . (int) $defaultInterval . '"> <span class="muted">' . ddns_admin_whitelist_lang('lbl_minutes') . '</span>';
     $html .= '</div>';
-    $html .= '<label class="checkbox-inline" style="margin-right:10px"><input type="checkbox" name="enabled" value="1" checked> Enabled</label>';
-    $html .= '<button type="submit" class="btn btn-primary">Add & Check Now</button>';
+    $html .= '<label class="checkbox-inline" style="margin-right:10px"><input type="checkbox" name="enabled" value="1" checked> ' . ddns_admin_whitelist_lang('lbl_enabled') . '</label>';
+    $html .= '<button type="submit" class="btn btn-primary">' . ddns_admin_whitelist_lang('btn_add_check') . '</button>';
     $html .= '</form>';
     $html .= '</div></div>';
 
     $html .= '<div class="panel panel-default">';
-    $html .= '<div class="panel-heading"><strong>Managed Hostnames</strong></div>';
+    $html .= '<div class="panel-heading"><strong>' . ddns_admin_whitelist_lang('panel_managed_hosts') . '</strong></div>';
     $html .= '<div class="panel-body">';
     $html .= '<form method="post" action="' . ddns_admin_whitelist_e($modulelink) . '" class="inline-form">';
     $html .= ddns_admin_whitelist_token_input($csrfToken);
     $html .= '<input type="hidden" name="ddns_action" value="check_all">';
-    $html .= '<button type="submit" class="btn btn-success">Check All Enabled Now</button>';
+    $html .= '<button type="submit" class="btn btn-success">' . ddns_admin_whitelist_lang('btn_check_all') . '</button>';
     $html .= '</form>';
-    $html .= '<span class="muted">Cron checks use AfterCronJob and each host interval is clamped to 15-30 minutes.</span>';
+    $html .= '<span class="muted">' . ddns_admin_whitelist_lang('msg_cron_note') . '</span>';
     $html .= '</div>';
     $html .= ddns_admin_whitelist_render_hosts_table($hosts, $modulelink, $csrfToken);
     $html .= '</div>';
 
     $html .= '<div class="panel panel-default">';
-    $html .= '<div class="panel-heading"><strong>Latest Logs</strong></div>';
+    $html .= '<div class="panel-heading"><strong>' . ddns_admin_whitelist_lang('panel_latest_logs') . '</strong></div>';
     $html .= ddns_admin_whitelist_render_logs_table($logs);
     $html .= '<div class="panel-footer">';
     $html .= '<form method="post" action="' . ddns_admin_whitelist_e($modulelink) . '" class="form-inline">';
     $html .= ddns_admin_whitelist_token_input($csrfToken);
     $html .= '<input type="hidden" name="ddns_action" value="prune_logs">';
-    $html .= '<label>Delete logs older than&nbsp;</label><input type="number" min="0" name="days" value="90" class="form-control" style="width:90px"> <span>days&nbsp;</span>';
-    $html .= '<button type="submit" class="btn btn-default">Prune Logs</button>';
+    $html .= '<label>' . ddns_admin_whitelist_lang('lbl_delete_logs_older') . '&nbsp;</label><input type="number" min="0" name="days" value="90" class="form-control" style="width:90px"> <span>' . ddns_admin_whitelist_lang('lbl_days') . '&nbsp;</span>';
+    $html .= '<button type="submit" class="btn btn-default">' . ddns_admin_whitelist_lang('btn_prune_logs') . '</button>';
     $html .= '</form>';
-    $html .= '<div class="log-prune-note">Enter 0 to delete all logs; minimum positive value is 7 days.</div>';
+    $html .= '<div class="log-prune-note">' . ddns_admin_whitelist_lang('msg_prune_note') . '</div>';
     $html .= '</div></div>';
     $html .= '</div>';
 
@@ -1211,6 +1335,7 @@ function ddns_admin_whitelist_render_admin($vars, array $messages)
 
 /**
  * Render host list table.
+ * Hiển thị bảng danh sách hostname.
  *
  * @param iterable $hosts
  * @param string   $modulelink
@@ -1222,47 +1347,47 @@ function ddns_admin_whitelist_render_hosts_table($hosts, $modulelink, $csrfToken
 {
     $html = '<div class="table-responsive"><table class="table table-striped table-bordered">';
     $html .= '<thead><tr>';
-    $html .= '<th></th><th>Hostname</th><th>Status</th><th>Current IP</th><th>Previous IP</th><th>Interval</th><th>Last Check</th><th>Last Success</th><th>Message</th><th>Actions</th>';
+    $html .= '<th></th><th>' . ddns_admin_whitelist_lang('th_hostname') . '</th><th>' . ddns_admin_whitelist_lang('th_status') . '</th><th>' . ddns_admin_whitelist_lang('th_current_ip') . '</th><th>' . ddns_admin_whitelist_lang('th_previous_ip') . '</th><th>' . ddns_admin_whitelist_lang('th_interval') . '</th><th>' . ddns_admin_whitelist_lang('th_last_check') . '</th><th>' . ddns_admin_whitelist_lang('th_last_success') . '</th><th>' . ddns_admin_whitelist_lang('th_message') . '</th><th>' . ddns_admin_whitelist_lang('th_actions') . '</th>';
     $html .= '</tr></thead><tbody>';
 
     $hasRows = false;
     foreach ($hosts as $host) {
         $hasRows = true;
         $statusClass = !empty($host->enabled) ? 'label-success' : 'label-default';
-        $statusText = !empty($host->enabled) ? 'Enabled' : 'Disabled';
+        $statusText = !empty($host->enabled) ? ddns_admin_whitelist_lang('status_enabled') : ddns_admin_whitelist_lang('status_disabled');
         $currentIp = ddns_admin_whitelist_clean_ip($host->current_ip);
         $previousIp = ddns_admin_whitelist_clean_ip($host->previous_ip);
 
         $html .= '<tr>';
         $html .= '<td class="host-avatar-cell">' . ddns_admin_whitelist_avatar_html($host->hostname) . '</td>';
-        $html .= '<td><span class="host-row-title"><strong>' . ddns_admin_whitelist_e($host->hostname) . '</strong><br><span class="muted">ID #' . (int) $host->id . '</span></span></td>';
+        $html .= '<td><span class="host-row-title"><strong>' . ddns_admin_whitelist_e($host->hostname) . '</strong><br><span class="muted">' . ddns_admin_whitelist_lang('lbl_id_prefix') . (int) $host->id . '</span></span></td>';
         $html .= '<td><span class="label ' . $statusClass . '">' . $statusText . '</span></td>';
-        $html .= '<td class="nowrap">' . ($currentIp !== '' ? '<code>' . ddns_admin_whitelist_e($currentIp) . '</code>' : '<span class="muted">none</span>') . '</td>';
-        $html .= '<td class="nowrap">' . ($previousIp !== '' ? '<code>' . ddns_admin_whitelist_e($previousIp) . '</code>' : '<span class="muted">none</span>') . '</td>';
-        $html .= '<td>' . (int) ddns_admin_whitelist_normalize_interval($host->interval_minutes) . ' min</td>';
+        $html .= '<td class="nowrap">' . ($currentIp !== '' ? '<code>' . ddns_admin_whitelist_e($currentIp) . '</code>' : '<span class="muted">' . ddns_admin_whitelist_lang('val_none') . '</span>') . '</td>';
+        $html .= '<td class="nowrap">' . ($previousIp !== '' ? '<code>' . ddns_admin_whitelist_e($previousIp) . '</code>' : '<span class="muted">' . ddns_admin_whitelist_lang('val_none') . '</span>') . '</td>';
+        $html .= '<td>' . (int) ddns_admin_whitelist_normalize_interval($host->interval_minutes) . ' ' . ddns_admin_whitelist_lang('unit_min') . '</td>';
         $html .= '<td class="nowrap">' . ddns_admin_whitelist_e(ddns_admin_whitelist_format_datetime($host->last_checked_at)) . '</td>';
         $html .= '<td class="nowrap">' . ddns_admin_whitelist_e(ddns_admin_whitelist_format_datetime($host->last_success_at)) . '</td>';
         $html .= '<td>' . ddns_admin_whitelist_e($host->last_message) . '</td>';
         $html .= '<td class="nowrap">';
-        $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'check_host', $host->id, 'Check Now', 'btn btn-xs btn-success', '');
+        $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'check_host', $host->id, ddns_admin_whitelist_lang('btn_check_now'), 'btn btn-xs btn-success', '');
 
         if (!empty($host->enabled)) {
-            $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'toggle_host', $host->id, 'Disable', 'btn btn-xs btn-default', '<input type="hidden" name="enabled" value="0">');
+            $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'toggle_host', $host->id, ddns_admin_whitelist_lang('btn_disable'), 'btn btn-xs btn-default', '<input type="hidden" name="enabled" value="0">');
         } else {
-            $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'toggle_host', $host->id, 'Enable', 'btn btn-xs btn-primary', '<input type="hidden" name="enabled" value="1">');
+            $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'toggle_host', $host->id, ddns_admin_whitelist_lang('btn_enable'), 'btn btn-xs btn-primary', '<input type="hidden" name="enabled" value="1">');
         }
 
-        $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'delete_host', $host->id, 'Delete Record', 'btn btn-xs btn-danger', '', 'return confirm(\'Delete this module host record? Existing WHMCS WhitelistedIPs entries will be preserved.\');');
-        $html .= '<details><summary>Edit</summary>';
+        $html .= ddns_admin_whitelist_action_form($modulelink, $csrfToken, 'delete_host', $host->id, ddns_admin_whitelist_lang('btn_delete_record'), 'btn btn-xs btn-danger', '', 'return confirm(\'' . ddns_admin_whitelist_lang('msg_delete_confirm') . '\');');
+        $html .= '<details><summary>' . ddns_admin_whitelist_lang('btn_edit') . '</summary>';
         $html .= '<div class="host-edit">';
         $html .= '<form method="post" action="' . ddns_admin_whitelist_e($modulelink) . '">';
         $html .= ddns_admin_whitelist_token_input($csrfToken);
         $html .= '<input type="hidden" name="ddns_action" value="update_host">';
         $html .= '<input type="hidden" name="host_id" value="' . (int) $host->id . '">';
-        $html .= '<div class="form-group"><label>Hostname</label><input type="text" name="hostname" class="form-control input-sm" value="' . ddns_admin_whitelist_e($host->hostname) . '" required></div>';
-        $html .= '<div class="form-group"><label>Interval</label><input type="number" min="15" max="30" name="interval_minutes" class="form-control input-sm" value="' . (int) ddns_admin_whitelist_normalize_interval($host->interval_minutes) . '"></div>';
-        $html .= '<label><input type="checkbox" name="enabled" value="1"' . (!empty($host->enabled) ? ' checked' : '') . '> Enabled</label><br>';
-        $html .= '<button type="submit" class="btn btn-xs btn-primary">Save & Check</button>';
+        $html .= '<div class="form-group"><label>' . ddns_admin_whitelist_lang('lbl_hostname') . '</label><input type="text" name="hostname" class="form-control input-sm" value="' . ddns_admin_whitelist_e($host->hostname) . '" required></div>';
+        $html .= '<div class="form-group"><label>' . ddns_admin_whitelist_lang('lbl_interval') . '</label><input type="number" min="15" max="30" name="interval_minutes" class="form-control input-sm" value="' . (int) ddns_admin_whitelist_normalize_interval($host->interval_minutes) . '"></div>';
+        $html .= '<label><input type="checkbox" name="enabled" value="1"' . (!empty($host->enabled) ? ' checked' : '') . '> ' . ddns_admin_whitelist_lang('lbl_enabled') . '</label><br>';
+        $html .= '<button type="submit" class="btn btn-xs btn-primary">' . ddns_admin_whitelist_lang('btn_save_check') . '</button>';
         $html .= '</form>';
         $html .= '</div></details>';
         $html .= '</td>';
@@ -1270,7 +1395,7 @@ function ddns_admin_whitelist_render_hosts_table($hosts, $modulelink, $csrfToken
     }
 
     if (!$hasRows) {
-        $html .= '<tr><td colspan="9" class="text-center muted">No hostnames added yet.</td></tr>';
+        $html .= '<tr><td colspan="10" class="text-center muted">' . ddns_admin_whitelist_lang('msg_no_hosts') . '</td></tr>';
     }
 
     $html .= '</tbody></table></div>';
@@ -1280,6 +1405,7 @@ function ddns_admin_whitelist_render_hosts_table($hosts, $modulelink, $csrfToken
 
 /**
  * Render recent logs table.
+ * Hiển thị bảng log gần đây.
  *
  * @param iterable $logs
  *
@@ -1288,16 +1414,16 @@ function ddns_admin_whitelist_render_hosts_table($hosts, $modulelink, $csrfToken
 function ddns_admin_whitelist_render_logs_table($logs)
 {
     $html = '<div class="table-responsive"><table class="table table-condensed table-bordered">';
-    $html .= '<thead><tr><th>Time</th><th>Hostname</th><th>Old IP</th><th>New IP</th><th>Status</th><th>Message</th></tr></thead><tbody>';
+    $html .= '<thead><tr><th>' . ddns_admin_whitelist_lang('th_time') . '</th><th>' . ddns_admin_whitelist_lang('th_hostname') . '</th><th>' . ddns_admin_whitelist_lang('th_old_ip') . '</th><th>' . ddns_admin_whitelist_lang('th_new_ip') . '</th><th>' . ddns_admin_whitelist_lang('th_status') . '</th><th>' . ddns_admin_whitelist_lang('th_message') . '</th></tr></thead><tbody>';
     $hasRows = false;
 
     foreach ($logs as $log) {
         $hasRows = true;
         $label = !empty($log->success) ? 'label-success' : (!empty($log->skipped) ? 'label-warning' : 'label-danger');
-        $status = !empty($log->success) ? 'Success' : (!empty($log->skipped) ? 'Skipped' : 'Failed');
+        $status = !empty($log->success) ? ddns_admin_whitelist_lang('status_success') : (!empty($log->skipped) ? ddns_admin_whitelist_lang('status_skipped') : ddns_admin_whitelist_lang('status_failed'));
 
         if (!empty($log->changed)) {
-            $status .= ' / Changed';
+            $status .= ' / ' . ddns_admin_whitelist_lang('status_changed');
         }
 
         $html .= '<tr>';
@@ -1311,7 +1437,7 @@ function ddns_admin_whitelist_render_logs_table($logs)
     }
 
     if (!$hasRows) {
-        $html .= '<tr><td colspan="6" class="text-center muted">No logs yet.</td></tr>';
+        $html .= '<tr><td colspan="6" class="text-center muted">' . ddns_admin_whitelist_lang('msg_no_logs') . '</td></tr>';
     }
 
     $html .= '</tbody></table></div>';
@@ -1321,6 +1447,7 @@ function ddns_admin_whitelist_render_logs_table($logs)
 
 /**
  * Render a small POST action form.
+ * Hiển thị một biểu mẫu hành động POST nhỏ.
  *
  * @param string $modulelink
  * @param string $csrfToken
@@ -1348,6 +1475,7 @@ function ddns_admin_whitelist_action_form($modulelink, $csrfToken, $action, $hos
 
 /**
  * Alert markup.
+ * Mã HTML cho khối thông báo.
  *
  * @param string $type
  * @param string $message
@@ -1363,6 +1491,7 @@ function ddns_admin_whitelist_alert($type, $message)
 
 /**
  * Hidden CSRF token input.
+ * Ô input ẩn chứa CSRF token.
  *
  * @param string $token
  *
@@ -1375,6 +1504,7 @@ function ddns_admin_whitelist_token_input($token)
 
 /**
  * Render an avatar for a hostname when available.
+ * Hiển thị avatar cho hostname khi có thể.
  *
  * @param string $hostname
  *
@@ -1391,6 +1521,7 @@ function ddns_admin_whitelist_avatar_html($hostname)
 
 /**
  * Build a public URL for a module asset relative to the admin script.
+ * Tạo URL công khai cho tài nguyên của module tương đối với script admin.
  *
  * @param string $path
  *
@@ -1410,6 +1541,7 @@ function ddns_admin_whitelist_asset_url($path)
 
 /**
  * Build module note.
+ * Tạo ghi chú của module.
  *
  * @param object $host
  * @param string $ip
@@ -1423,6 +1555,7 @@ function ddns_admin_whitelist_note_for_host($host, $ip)
 
 /**
  * Check if whitelist entry belongs to one host id.
+ * Kiểm tra một mục whitelist có thuộc về một host id hay không.
  *
  * @param mixed $entry
  * @param int   $hostId
@@ -1440,6 +1573,7 @@ function ddns_admin_whitelist_entry_is_for_host($entry, $hostId)
 
 /**
  * Get IP from one whitelist entry.
+ * Lấy IP từ một mục whitelist.
  *
  * @param mixed $entry
  *
@@ -1456,6 +1590,7 @@ function ddns_admin_whitelist_entry_ip($entry)
 
 /**
  * Clean IP value.
+ * Làm sạch giá trị IP.
  *
  * @param mixed $ip
  *
@@ -1468,6 +1603,7 @@ function ddns_admin_whitelist_clean_ip($ip)
 
 /**
  * Null if empty string.
+ * Trả về null nếu chuỗi rỗng.
  *
  * @param mixed $value
  *
@@ -1482,6 +1618,7 @@ function ddns_admin_whitelist_null_if_empty($value)
 
 /**
  * Format date display.
+ * Định dạng hiển thị ngày giờ.
  *
  * @param mixed $value
  *
@@ -1500,6 +1637,7 @@ function ddns_admin_whitelist_format_datetime($value)
 
 /**
  * Escape HTML.
+ * Thoát các ký tự HTML.
  *
  * @param mixed $value
  *
@@ -1512,6 +1650,7 @@ function ddns_admin_whitelist_e($value)
 
 /**
  * Current SQL datetime.
+ * Lấy ngày giờ SQL hiện tại.
  *
  * @return string
  */

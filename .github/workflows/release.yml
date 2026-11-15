@@ -1,0 +1,107 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Phiên bản phát hành / Release version (vd: 1.0.0 hoặc v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build package and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Xác định phiên bản / Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME}"
+          fi
+          V="v${V#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Phát hành / Releasing: $V"
+
+      - name: Kiểm tra phát hành đã tồn tại / Idempotency guard
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.ver.outputs.version }} đã tồn tại — bỏ qua / already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tạo tag / Create tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch' && steps.guard.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.ver.outputs.version }}" HEAD
+          git push origin "${{ steps.ver.outputs.version }}"
+
+      - name: Lint all PHP files
+        if: steps.guard.outputs.exists == 'false'
+        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Build packages
+        if: steps.guard.outputs.exists == 'false'
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix=ddns_admin_whitelist/ \
+            -o "dist/ddns_admin_whitelist-${{ steps.ver.outputs.version }}.zip" HEAD
+          git archive --format=tar.gz --prefix=ddns_admin_whitelist/ \
+            -o "dist/ddns_admin_whitelist-${{ steps.ver.outputs.version }}.tar.gz" HEAD
+          (cd dist && sha256sum *.zip *.tar.gz > SHA256SUMS)
+          ls -lh dist
+
+      - name: Trích ghi chú phát hành từ CHANGELOG / Extract release notes
+        if: steps.guard.outputs.exists == 'false'
+        run: |
+          NUM="$(echo '${{ steps.ver.outputs.version }}' | sed 's/^v//')"
+          awk -v ver="$NUM" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            /^## \[/ && flag {exit}
+            flag {print}
+          ' CHANGELOG.md > dist/release-notes.md
+          if [ ! -s dist/release-notes.md ]; then
+            echo "Phát hành ${NUM} bởi CI/CD của tổ chức hitechcloudvn. / Released by hitechcloudvn CI/CD." > dist/release-notes.md
+          fi
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "Phát hành bởi CI/CD của tổ chức hitechcloudvn. / Released by hitechcloudvn CI/CD."
+            echo ""
+            echo "Co-authored-by: pgt-vn <nguyenthanhan92f1@gmail.com>"
+            echo "Co-authored-by: agent-hitechcloud <agent@hitechcloud.vn>"
+          } >> dist/release-notes.md
+          cat dist/release-notes.md
+
+      - name: Create GitHub Release
+        if: steps.guard.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.version }}" \
+            "dist/ddns_admin_whitelist-${{ steps.ver.outputs.version }}.zip" \
+            "dist/ddns_admin_whitelist-${{ steps.ver.outputs.version }}.tar.gz" \
+            dist/SHA256SUMS \
+            --title "DDNS Admin Whitelist ${{ steps.ver.outputs.version }}" \
+            --notes-file dist/release-notes.md

@@ -1,0 +1,26 @@
+# Vật liệu mã hoá — tuyệt đối không commit / Cryptographic material — never commit
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.p7b
+certs/
+
+# Bí mật cấu hình / Configuration secrets
+.env
+.env.*
+*.local
+
+# Dùng cho build CI, không commit / CI build output — do not commit
+dist/
+vendor/
+composer.phar
+
+# Rác hệ điều hành / OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Trợ lý AI / AI assistant
+.claude/

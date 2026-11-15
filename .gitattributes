@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+*.php text diff=php
+*.sh text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.png binary
+*.ico binary
+*.jpg binary
+*.zip binary
+*.gz binary
+
+docs/** linguist-documentation
